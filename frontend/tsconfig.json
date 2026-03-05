@@ -1,0 +1,37 @@
+{
+    "compilerOptions": {
+        // Target modern browsers that support WebTransport and WebCodecs
+        "target": "ESNext",
+        // Include DOM types for browser APIs (WebTransport, fetch, etc.)
+        "lib": [
+            "ESNext",
+            "DOM",
+            "DOM.Iterable"
+        ],
+        // Use ESNext modules for top-level await and dynamic imports
+        "module": "ESNext",
+        // "bundler" lets Vite resolve imports without strict file extension rules
+        "moduleResolution": "bundler",
+        // Allow @moq/lite's type declarations to be used directly
+        "allowImportingTsExtensions": true,
+        // Strict type checking for reliability
+        "strict": true,
+        // noEmit because Vite handles the actual transpilation
+        "noEmit": true,
+        // Helps with debugging in Docker environments
+        "sourceMap": true,
+        // Skip checking node_modules types to speed up compilation
+        "skipLibCheck": true,
+        // Allow default imports from CommonJS modules
+        "esModuleInterop": true,
+        // Ensure consistent casing in module paths
+        "forceConsistentCasingInFileNames": true
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
+}

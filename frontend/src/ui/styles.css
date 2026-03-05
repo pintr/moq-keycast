@@ -1,0 +1,468 @@
+/* =============================================================================
+   MoQ Chat – Application Styles
+   =============================================================================
+
+   Layout overview:
+     #app
+     ├── .lobby          (username + room picker, shown before joining)
+     └── .chat-room      (split view: messages on left, members on right)
+         ├── .chat-header
+         ├── .chat-body
+         │   ├── .message-list
+         │   └── .member-panel
+         └── .chat-footer (message input bar)
+   ============================================================================= */
+
+/* ── Reset & base ─────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --color-bg: #0f1117;
+    --color-surface: #1a1d27;
+    --color-surface-2: #22263a;
+    --color-border: #2e3350;
+    --color-primary: #5b8af5;
+    --color-primary-hover: #7aa2ff;
+    --color-text: #dde2f5;
+    --color-text-muted: #7a85b0;
+    --color-self-bubble: #1e3a8a;
+    --color-other-bubble: #232846;
+    --color-typing: #6d7fcc;
+    --color-danger: #e05252;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --transition: 150ms ease;
+
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    color: var(--color-text);
+    background: var(--color-bg);
+}
+
+body {
+    min-height: 100dvh;
+    display: flex;
+    align-items: stretch;
+}
+
+#app {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── Utility ──────────────────────────────────────────────────────────────── */
+
+.hidden {
+    display: none !important;
+}
+
+button {
+    cursor: pointer;
+    font: inherit;
+    border: none;
+    outline: none;
+    border-radius: var(--radius-sm);
+    padding: 0.5em 1.2em;
+    transition: background var(--transition), opacity var(--transition);
+}
+
+button:focus-visible {
+    outline: 2px solid var(--color-primary);
+}
+
+input[type="text"] {
+    font: inherit;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    padding: 0.5em 0.8em;
+    width: 100%;
+    transition: border-color var(--transition);
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+/* ── Lobby ────────────────────────────────────────────────────────────────── */
+
+.lobby {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.lobby-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 420px;
+}
+
+.lobby-card h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.02em;
+}
+
+.lobby-card .subtitle {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+}
+
+.lobby-card .subtitle span {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.form-group {
+    margin-bottom: 1.2rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+}
+
+.btn-primary {
+    width: 100%;
+    background: var(--color-primary);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.65em 1.2em;
+    border-radius: var(--radius-sm);
+    margin-top: 0.5rem;
+}
+
+.btn-primary:hover {
+    background: var(--color-primary-hover);
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.error-msg {
+    color: var(--color-danger);
+    font-size: 0.85rem;
+    margin-top: 0.75rem;
+    text-align: center;
+    min-height: 1.2em;
+}
+
+/* ── Chat room layout ─────────────────────────────────────────────────────── */
+
+.chat-room {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Top bar with room name and leave button */
+.chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.room-badge {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+    background: rgba(91, 138, 245, 0.12);
+    border: 1px solid rgba(91, 138, 245, 0.3);
+    border-radius: 4px;
+    padding: 0.2em 0.6em;
+}
+
+.room-title {
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.username-chip {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+}
+
+.btn-leave {
+    background: var(--color-surface-2);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    font-size: 0.82rem;
+}
+
+.btn-leave:hover {
+    background: var(--color-danger);
+    color: #fff;
+    border-color: var(--color-danger);
+}
+
+/* Main split: messages + member panel */
+.chat-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.live-feeds {
+    width: 100%;
+}
+
+.feed-label {
+    font-size: 20px;
+    background: rgba(255, 255, 255, .1);
+}
+
+/* ── Message list ─────────────────────────────────────────────────────────── */
+
+.message-list-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.message-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.message {
+    display: flex;
+    flex-direction: column;
+    max-width: 72%;
+}
+
+.message.self {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.message.other {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.message-meta {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.25rem;
+    padding: 0 6px;
+}
+
+.message-bubble {
+    background: var(--color-other-bubble);
+    border-radius: var(--radius);
+    padding: 0.55em 0.9em;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.message.self .message-bubble {
+    background: var(--color-self-bubble);
+}
+
+/* ── Member / typing panel ────────────────────────────────────────────────── */
+
+.member-panel {
+    width: 220px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--color-border);
+    background: var(--color-surface);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.member-panel-header {
+    padding: 0.7rem 1rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.member-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.member-item {
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.75rem;
+    background: var(--color-surface-2);
+}
+
+.member-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.member-name .self-label {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    font-weight: 400;
+    margin-left: 0.3em;
+}
+
+/*
+  Live typing preview.
+
+  Shown below the member's name when they're actively typing something.
+  The animated dots (…) give a visual rhythm cue similar to WhatsApp/Telegram.
+*/
+.member-typing {
+    font-size: 0.78rem;
+    color: var(--color-typing);
+    margin-top: 0.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+    height: 1em;
+}
+
+/* Three-dot "..." pulse animation when waiting for text */
+.member-typing::after {
+    content: "";
+}
+
+.member-typing.active::after {
+    content: "…";
+    animation: blink 1.2s steps(1) infinite;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+/* ── Footer + input bar ──────────────────────────────────────────────────── */
+
+.chat-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.local-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.local-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.chat-footer input[type="text"] {
+    flex: 1;
+}
+
+/* ── Connection status banner ─────────────────────────────────────────────── */
+
+.status-banner {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.5rem 1.25rem;
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    z-index: 999;
+    transition: opacity 400ms;
+}
+
+.status-banner.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ── Scrollbar styling ────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+}

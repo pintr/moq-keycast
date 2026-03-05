@@ -1,0 +1,19 @@
+{
+    "name": "moq-chat",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Live chat application built with Media over QUIC (@moq/lite)",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc --noEmit && vite build",
+        "preview": "vite preview --host 0.0.0.0 --port 4173"
+    },
+    "dependencies": {
+        "@moq/lite": "^0.1.5"
+    },
+    "devDependencies": {
+        "typescript": "^5.4.5",
+        "vite": "^5.2.0"
+    }
+}

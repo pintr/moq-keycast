@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Live chat powered by Media over QUIC (MoQ)" />
+
+    <title>MoQ Chat</title>
+
+    <!--
+      No external font CDN in offline / Docker environments.
+      If you have internet access, uncomment the Inter font:
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    -->
+
+    <!--
+      Vite injects the bundled CSS and JS here at build time.
+      During `vite dev`, the module below is served by the dev server.
+    -->
+</head>
+
+<body>
+    <!--
+      #app is the single mount point for our application.
+      main.ts renders the Lobby or the Chat Room into this element.
+    -->
+    <div id="app"></div>
+
+    <!--
+      Entry point: Vite processes src/main.ts (with @moq/lite, TypeScript, CSS)
+      and bundles everything into an optimised static asset set.
+    -->
+    <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>
