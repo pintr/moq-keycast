@@ -1,0 +1,49 @@
+# ── Build stage ────────────────────────────────────────────────────────────────
+FROM rust:1.88-bookworm AS builder
+
+# Build dependencies required by aws-lc-rs (pulled in via moq-native/quinn):
+#   cmake  — aws-lc build system
+#   clang  — C/C++ compiler used by aws-lc-sys
+#   golang-go — aws-lc build system (Go ≥ 1.13 required)
+#   nasm   — assembly optimisations on x86_64 (skipped gracefully on other arches)
+#   pkg-config / libssl-dev — fallback openssl probes in some crates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    clang \
+    libclang-dev \
+    golang-go \
+    nasm \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the full source tree (Cargo.lock is committed, git deps resolved from it)
+COPY Cargo.toml Cargo.lock ./
+COPY src/ ./src/
+
+RUN cargo build --release --locked
+
+# ── Runtime stage ──────────────────────────────────────────────────────────────
+FROM debian:bookworm-slim AS runtime
+
+# ca-certificates is needed to validate TLS certificates for the relay server
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Run as a non-root user
+RUN useradd --create-home --shell /bin/sh appuser
+WORKDIR /home/appuser
+
+COPY --from=builder /app/target/release/moq-chat ./moq-chat
+RUN chown appuser:appuser moq-chat
+
+USER appuser
+
+# moq-chat is an interactive TUI — always run with:  docker run --rm -it ...
+# Required flags: --room <name> --username <name>
+# Optional:       --relay <url>  (default: https://localhost:4443)
+#                 --tls-disable-verify  (for self-signed relay certs)
+ENTRYPOINT ["./moq-chat"]

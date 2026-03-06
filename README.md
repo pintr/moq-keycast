@@ -1,109 +1,249 @@
-# MoQ Chat
+# moq-chat
 
-A live-typing demo built with [Media over QUIC](https://github.com/moq-dev/moq) (`@moq/lite`).
+A live-typing chat demo built on [Media over QUIC (MoQ)](https://datatracker.ietf.org/wg/moq/about/) — every keystroke is published to the relay and appears on every other connected user's screen in real time. There is no Send button and no message history, just raw live text delivered over QUIC.
 
-Every keystroke is published instantly over QUIC and appears on all other users' screens in real time — no Send button, no Enter to confirm, just raw live text.
+This repo contains two client implementations that **share the same relay and wire format**, so they can talk to each other in real time:
 
-## How it works
+| Directory | Language | UI |
+|---|---|---|
+| [`ts/`](#typescript-browser-spa-ts) | TypeScript | Browser (Vite SPA, served by nginx) |
+| [`rs/`](#rust-tui-client-rs) | Rust | Terminal (TUI via ratatui) |
+| [`relay/`](#the-relay) | — | Shared `moq-relay` server |
 
-Each user has two UI areas:
+Everything runs in Docker. All commands below are run from the **project root**.
 
-- **Input field (footer)** – what you are currently typing. Every `input` event publishes the full current text as a new MoQ group on the `typing` track.
-- **Live feed cards (body)** – one card per remote peer, showing whatever they are typing right now, updated keystroke-by-keystroke as groups arrive.
+---
 
-```
-Browser A                   moq-relay                   Browser B
-   │                           │                           │
-   │── publish broadcast ────▶│                           │
-   │   moq-chat/room/alice     │◀─── announced prefix ────│
-   │                           │   moq-chat/room/          │
-   │                           │                           │
-   │  [user types "h"]         │                           │
-   │── typing group "h" ─────▶│── typing group "h" ─────▶│ card shows "h"
-   │  [user types "hi"]        │                           │
-   │── typing group "hi" ────▶│── typing group "hi" ────▶│ card shows "hi"
-   │  [user types "hig"]       │                           │
-   │── typing group "hig" ───▶│── typing group "hig" ───▶│ card shows "hig"
-```
+## How It Works
 
-**MoQ path layout:**
+### The relay
 
-- Each user publishes `moq-chat/{roomId}/{username}` (one broadcast per user)
-- `typing` track – one group per keystroke; each group = the full current text snapshot
+`moq-relay` (from [moq-dev/moq](https://github.com/moq-dev/moq)) is the central server. **Every client — browser and terminal — connects to it.** It fans out data from publishers to all subscribers and serves a self-signed TLS certificate fingerprint at `/certificate.sha256`.
 
-The relay and `@moq/lite` automatically discard stale groups, so subscribers always receive the latest snapshot — no debounce or client-side buffering needed.
+The relay listens on a single port (4443) over two transport protocols:
 
-**Transport:** `@moq/lite` races WebTransport (QUIC) vs WebSocket. For local Docker development, it fetches the relay's self-signed TLS fingerprint from `http://localhost:4443/certificate.sha256` and uses `serverCertificateHashes` so the browser trusts it without a CA.
+| Protocol | Transport | Purpose |
+|---|---|---|
+| QUIC / WebTransport | UDP 4443 | Real-time MoQ data delivery |
+| HTTP / WebSocket | TCP 4443 | TLS fingerprint endpoint + WebSocket fallback |
 
-## Project structure
+For local development the relay auto-generates a self-signed TLS certificate (`--tls-generate localhost`). Browsers fetch its fingerprint from `http://localhost:4443/certificate.sha256` and pass it as `serverCertificateHashes` to the WebTransport API, so Chrome trusts it without a CA. Firefox and Safari fall back to WebSocket automatically.
+
+### MoQ protocol layout
+
+Each client publishes a personal broadcast at `moq-chat/{room}/{username}` with a `typing` track. Every keystroke writes a new MoQ group to that track — a complete snapshot of the current input buffer. Subscribers watch the `moq-chat/{room}/` prefix, read the latest group from each peer's track, and discard stale ones. The result is zero-latency, keystroke-by-keystroke delivery.
 
 ```
-moq-chat/
-├── docker-compose.yml          # Orchestrates relay + frontend
-├── relay/
-│   └── Dockerfile              # Builds moq-relay from moq-dev/moq source
-└── frontend/
-    ├── Dockerfile              # Builds Vite SPA, serves with nginx
-    ├── src/
-    │   ├── config.ts           # Relay URL and MoQ path constants
-    │   ├── types.ts            # Shared TypeScript types (wire + UI)
-    │   ├── main.ts             # App entry: lobby → room routing
-    │   ├── moq/
-    │   │   ├── connection.ts   # connectToRelay() singleton
-    │   │   ├── publisher.ts    # Publish typing + messages via MoQ
-    │   │   └── subscriber.ts   # Subscribe to room members via MoQ
-    │   └── ui/
-    │       ├── lobby.ts        # Lobby screen (username + room picker)
-    │       ├── chat-room.ts    # Live feed (per-peer cards + local input)
-    │       └── styles.css      # Dark-theme CSS
-    └── index.html
+moq-chat/{room}/{username}
+  └── track "typing"    ← one group per keypress (full text snapshot)
+  └── track "messages"  ← (TypeScript only) confirmed sent messages
 ```
 
-## Quick start (Docker)
+### Wire format
 
-> **Requirements:** Docker with Compose V2 (`docker compose version`).  
-> **First build:** The relay Dockerfile compiles Rust from source — takes ~15 min on the first run, cached after that.
+All frames on the `typing` track use the same JSON encoding so that the Rust TUI and the browser SPA can read each other's output:
+
+```json
+{ "text": "hello", "timestamp": 1709730000000 }
+```
+
+The Rust client serializes this with `serde_json` and deserializes it transparently. If a frame cannot be parsed as JSON (e.g. from a legacy client) the raw bytes are displayed as-is.
+
+### System diagram
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                  moq-relay  (port 4443)                  │
+│   UDP 4443 — QUIC / WebTransport                        │
+│   TCP 4443 — HTTP (cert fingerprint) + WebSocket        │
+└──────────┬───────────────────────────┬───────────────────┘
+           │  Docker internal network  │
+           │                           │
+ ┌─────────┴──────────┐   ┌────────────┴──────────┐
+ │  ts/ (Browser SPA) │   │  rs/ (Rust TUI)        │
+ │  nginx → port 8080 │   │  docker compose run    │
+ │  browser connects  │   │  terminal              │
+ │  to relay directly │   │  connects to relay     │
+ └────────────────────┘   └───────────────────────┘
+           ▲
+           │  browser loads SPA from http://localhost:8080,
+           │  then connects DIRECTLY to relay at http://localhost:4443
+```
+
+---
+
+## Quick Start
+
+> **First build:** The relay Dockerfile compiles `moq-relay` from Rust source, which takes ~10–20 minutes. All subsequent builds are served from Docker layer cache.
+
+### Browser client + relay (recommended)
 
 ```bash
-# Build and start both containers
 docker compose up --build
-
-# Open the chat in your browser
-open http://localhost:8080
 ```
 
-Open two browser tabs (or two browsers) at `http://localhost:8080`. Join the same room with different usernames. Start typing in one tab and watch your text appear live in the other.
+Then open **<http://localhost:8080>** in Chrome (recommended) or Firefox. Open two tabs, join the same room with different usernames, and start typing.
 
-> **Chrome only for WebTransport:** Firefox and Safari don't yet support WebTransport. `@moq/lite` automatically falls back to WebSocket for unsupported browsers, so they still work — just without QUIC prioritisation.
+Ports exposed on the host:
 
-## Local development (without Docker)
+| Port | Protocol | Service |
+|---|---|---|
+| `4443` | TCP | Relay — HTTP fingerprint endpoint + WebSocket |
+| `4443` | UDP | Relay — QUIC / WebTransport |
+| `8080` | TCP | Frontend SPA (nginx) |
+
+### Terminal (TUI) client
+
+The TUI client connects to the relay over the internal Docker network. Start the relay first if it is not already running:
 
 ```bash
-# 1. Build and run the relay container only
+docker compose up relay -d
+```
+
+Then run the TUI client, passing your username
+
+```bash
+docker compose run --rm tui --username alice
+```
+
+Open a second terminal with a different username to chat:
+
+```bash
+docker compose run --rm tui --username bob
+```
+
+> The `tui` service is defined with the `tui` [profile](https://docs.docker.com/compose/profiles/) so it never starts automatically with `docker compose up`.
+
+### Running both clients together (cross-client chat)
+
+The Rust TUI and the browser SPA share the same relay and wire format, so a terminal user and a browser user in the same room see each other's keystrokes in real time.
+
+```bash
+# Terminal 1 — start the relay and browser frontend
+docker compose up --build -d
+
+# Terminal 2 — join as a TUI user
+docker compose run --rm tui --username alice
+
+# Then open http://localhost:8080 in a browser, join room "general" as "bob"
+# alice and bob will see each other type, keystroke by keystroke
+```
+
+---
+
+## Rust TUI Client (`rs/`)
+
+A terminal chat client built with [ratatui](https://ratatui.rs/) and [crossterm](https://github.com/crossterm-rs/crossterm), communicating over QUIC via [quinn](https://github.com/quinn-rs/quinn) through the `moq-native` crate.
+
+### Keybindings
+
+| Key | Action |
+|---|---|
+| Any character | Append to input and publish immediately |
+| Backspace | Delete last character and publish immediately |
+| Enter | Clear input (resets peers' view of you) |
+| Esc / Ctrl+C | Quit |
+
+### CLI flags
+
+| Flag | Default (in container) | Description |
+|---|---|---|
+| `--relay` | `https://relay:4443` | Relay URL — uses internal Docker service name |
+| `--room` | `general` | Chat room name |
+| `--username` | *(required)* | Your display name |
+| `--tls-disable-verify` | on (in container) | Skip TLS hostname verification (cert is issued for `localhost`, not `relay`) |
+
+Logs are written to `moq-chat.log` (never to stderr, which would corrupt the TUI alternate screen).
+
+### Build image only
+
+```bash
+docker compose build tui
+```
+
+### Dependencies
+
+| Crate | Role |
+|---|---|
+| `moq-lite` (git) | MoQ tracks, groups, frames, broadcasts |
+| `moq-native` (git) | QUIC/WebSocket transport, TLS, CLI helpers |
+| `ratatui` | Terminal UI rendering |
+| `crossterm` | Cross-platform terminal control and async event stream |
+| `tokio` | Async runtime |
+| `clap` | CLI argument parsing |
+| `anyhow` | Error handling |
+| `tracing` / `tracing-subscriber` | Structured logging |
+
+---
+
+## TypeScript Browser SPA (`ts/`)
+
+A browser-based client using [`@moq/lite`](https://www.npmjs.com/package/@moq/lite) that supports QUIC/WebTransport (Chrome) with an automatic WebSocket fallback (Firefox, Safari). Served by nginx.
+
+### Frontend-only dev server (hot-reload)
+
+To iterate quickly on the TypeScript frontend without rebuilding the Docker image, run the relay in Docker and the Vite dev server natively:
+
+```bash
+# Start the relay
 docker compose up relay -d
 
-# 2. Install frontend dependencies and start Vite dev server
-cd frontend
+# Run Vite with hot-reload (requires Node.js installed locally)
+cd ts/frontend
 npm install
 npm run dev
-
-# 3. Open http://localhost:5173
+# → open http://localhost:5173
 ```
 
-The Vite dev server hot-reloads TypeScript changes instantly. The relay still runs in Docker.
+### Configuration
 
-## Configuration
-
-| Variable | Default | Description |
+| Build arg | Default | Description |
 |---|---|---|
-| `VITE_RELAY_URL` | `http://localhost:4443` | MoQ relay URL seen by the **browser**. Override at build time: `docker compose build --build-arg VITE_RELAY_URL=http://myhost:4443` |
+| `VITE_RELAY_URL` | `http://localhost:4443` | Relay URL baked into the JS bundle at build time |
 
-## Architecture decisions
+Override for a custom relay host:
+
+```bash
+docker compose build frontend --build-arg VITE_RELAY_URL=https://relay.example.com:4443
+```
+
+### Dependencies
+
+| Package | Role |
+|---|---|
+| `@moq/lite` | MoQ protocol + QUIC/WebSocket transport in the browser |
+| `vite` | Build tool and dev server |
+| `typescript` | Type checking |
+
+---
+
+## The Relay
+
+`moq-relay` is sourced from [moq-dev/moq](https://github.com/moq-dev/moq) and compiled during the Docker build (`relay/Dockerfile`). It is the single point all clients connect to: it fans out each publisher's tracks to all matching subscribers.
+
+### Relay flags (configured in `docker-compose.yml`)
+
+| Flag | Value | Description |
+|---|---|---|
+| `--server-bind` | `[::]:4443` | QUIC/WebTransport on UDP 4443, all interfaces |
+| `--web-http-listen` | `[::]:4443` | HTTP + WebSocket on TCP 4443, all interfaces |
+| `--tls-generate` | `localhost` | Auto-generate a short-lived self-signed TLS cert |
+| `--auth-public` | `""` | All MoQ paths publicly readable/writable (dev only) |
+
+For production: replace `--tls-generate` with a CA-signed certificate and remove `--auth-public ""`, replacing it with `--auth-key` to restrict access.
+
+---
+
+## Architecture Decisions
 
 | Decision | Reason |
 |---|---|
-| One broadcast per user | Each user publishes their own broadcast so they fully control the track lifecycle. Relay fans out to all subscribers. |
-| One group per keypress | MoQ groups are the unit of delivery. The relay and `@moq/lite` skip old groups so subscribers always see the *latest* typing snapshot — no debounce needed. |
-| No send / no history | The app showcases raw MoQ delivery latency. Text is ephemeral — each new group replaces the previous one in the feed card. |
-| `http://` relay URL for local dev | `@moq/lite` auto-fetches `/certificate.sha256` and passes it as `serverCertificateHashes`, enabling WebTransport with a self-signed cert. |
-| WebSocket fallback | `@moq/lite` races QUIC vs WebSocket. Firefox/Safari fall back to WebSocket transparently; the MoQ framing is identical. |
+| One broadcast per user | Each user owns their track lifecycle; relay fans out to all subscribers |
+| One group per keypress | MoQ groups are the unit of delivery; old groups are automatically skipped, so subscribers always get the latest snapshot with no debounce needed |
+| No Send / no history | Showcases raw MoQ delivery latency; text is deliberately ephemeral |
+| JSON wire format for `typing` frames | `{"text":"...","timestamp":...}` is the shared contract between the Rust and TypeScript clients; `serde_json` on the Rust side, `group.writeJson()` / `group.readJson()` on the TypeScript side |
+| Rust falls back to raw bytes | If a `typing` frame is not valid JSON, the Rust TUI displays the raw bytes — forward-compatible with hypothetical non-JSON clients |
+| `http://` relay URL in browser | `@moq/lite` auto-fetches `/certificate.sha256` and uses it as `serverCertificateHashes`, enabling WebTransport with a self-signed cert without a CA |
+| WebSocket fallback | `@moq/lite` races QUIC vs WebSocket; Firefox and Safari fall back transparently |
+| `tui` Compose profile | Prevents the interactive TUI container from starting automatically with `docker compose up` |
+| Internal Docker network for TUI | The TUI container reaches the relay by service name (`relay:4443`) without extra port mapping; `--tls-disable-verify` handles the hostname mismatch |

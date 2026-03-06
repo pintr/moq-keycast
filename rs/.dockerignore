@@ -1,0 +1,15 @@
+# Build artifacts — large and rebuilt inside Docker anyway
+target/
+
+# Git metadata
+.git/
+.gitignore
+
+# Log files produced at runtime
+*.log
+moq-chat.log
+
+# Editor / IDE artefacts
+.vscode/
+.idea/
+*.swp

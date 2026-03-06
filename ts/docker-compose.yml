@@ -1,0 +1,99 @@
+# =============================================================================
+# docker-compose.yml – MoQ Chat
+# =============================================================================
+#
+# Services:
+#
+#   relay    – moq-relay built from the official moq-dev/moq Rust source.
+#              Handles all real-time MoQ pub/sub between chat clients.
+#
+#   frontend – Vite-built TypeScript SPA served by nginx.
+#              Browsers open http://localhost:8080 to load the app.
+#
+# ─── How the browser connects ─────────────────────────────────────────────────
+#
+#   The browser loads the SPA from http://localhost:8080 (frontend container).
+#   It then connects DIRECTLY to the relay at http://localhost:4443.
+#
+#   @moq/lite sees the http:// scheme and:
+#     1. Fetches  http://localhost:4443/certificate.sha256  (HTTP over TCP)
+#        to get the relay's self-signed TLS certificate fingerprint.
+#     2. Opens a WebTransport session to https://localhost:4443 (QUIC over UDP)
+#        using that fingerprint via `serverCertificateHashes`.
+#     3. Falls back to WebSocket ws://localhost:4443 if QUIC is unavailable.
+#
+# ─── Port mapping ─────────────────────────────────────────────────────────────
+#
+#   Host 4443/tcp  →  relay:4443/tcp  (HTTP: TLS fingerprint + WebSocket)
+#   Host 4443/udp  →  relay:4443/udp  (QUIC/WebTransport)
+#   Host 8080/tcp  →  frontend:80/tcp (nginx serving the SPA)
+#
+# =============================================================================
+
+services:
+  # ── moq-relay ───────────────────────────────────────────────────────────────
+  relay:
+    build:
+      context: ../relay
+      dockerfile: Dockerfile
+    container_name: moq-relay
+
+    # Expose port 4443 on BOTH TCP (HTTP/WebSocket) and UDP (QUIC/WebTransport).
+    # Browsers need UDP for WebTransport and TCP for the fingerprint endpoint.
+    ports:
+      - "4443:4443/tcp"
+      - "4443:4443/udp"
+
+    # Relay CLI arguments (override the Dockerfile CMD defaults here if needed):
+    #
+    #   --server-bind [::]:4443
+    #       QUIC/WebTransport server on UDP port 4443, all network interfaces.
+    #
+    #   --web-http-listen [::]:4443
+    #       HTTP server on TCP port 4443.
+    #       Serves /certificate.sha256 (fingerprint for local TLS trust) and
+    #       handles WebSocket fallback connections at the root path /.
+    #
+    #   --tls-generate localhost
+    #       Auto-generates a self-signed TLS certificate for "localhost".
+    #       The fingerprint is served at /certificate.sha256 so browsers can
+    #       trust the cert without a CA via `serverCertificateHashes`.
+    #       NOTE: moq-native generates short-lived certs (≤14 days) which is
+    #       what Chrome requires for self-signed WebTransport certificates.
+    command:
+      - "--server-bind"
+      - "[::]:4443"
+      - "--web-http-listen"
+      - "[::]:4443"
+      - "--tls-generate"
+      - "localhost"
+      # Make all paths publicly readable/writable (no auth required for local dev).
+      # --auth-public with an empty prefix matches every path.
+      # Remove this and set --auth-key for production deployments.
+      - "--auth-public"
+      - ""
+
+    # Allow increased system memory for QUIC buffers (optional but recommended)
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+    restart: unless-stopped
+
+  # ── frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # The relay URL is baked into the JS bundle at build time.
+        # Browsers always connect to localhost:4443 (host-mapped relay port).
+        # Change this if you deploy behind a domain name.
+        VITE_RELAY_URL: http://localhost:4443
+    container_name: moq-chat-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - relay
+    restart: unless-stopped

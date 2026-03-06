@@ -1,0 +1,23 @@
+[package]
+name = "moq-chat"
+version = "0.1.0"
+edition = "2021"
+description = "Live-typing MoQ chat: every keystroke delivered over QUIC"
+
+[[bin]]
+name = "moq-chat"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+clap = { version = "4", features = ["derive", "env"] }
+crossterm = { version = "0.28", features = ["event-stream"] }
+futures = "0.3"
+moq-lite = { git = "https://github.com/moq-dev/moq" }
+moq-native = { git = "https://github.com/moq-dev/moq" }
+ratatui = "0.29"
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2"
