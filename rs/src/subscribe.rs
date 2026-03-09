@@ -65,6 +65,9 @@ pub async fn run(
                             continue;
                         };
 
+                        // Notify the TUI immediately so the peer appears before they type.
+                        let _ = peer_tx.send(PeerEvent::Joined(username.clone()));
+
                         let tx = peer_tx.clone();
                         let uname = username.clone();
                         let handle = tokio::spawn(async move {

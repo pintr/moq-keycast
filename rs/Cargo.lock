@@ -362,11 +362,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "conducer"
-version = "0.2.1"
-source = "git+https://github.com/moq-dev/moq#ff7ca9b089d857c9c45a6cf02e5358150c84bcf0"
-
-[[package]]
 name = "core-foundation"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1276,10 +1271,10 @@ dependencies = [
 [[package]]
 name = "moq-lite"
 version = "0.15.0"
-source = "git+https://github.com/moq-dev/moq#ff7ca9b089d857c9c45a6cf02e5358150c84bcf0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e2b5cbf085a08eca461384c1242a437c4505f41a315e50eec10d538bb910b1"
 dependencies = [
  "bytes",
- "conducer",
  "futures",
  "hex",
  "num_enum",
@@ -1295,7 +1290,8 @@ dependencies = [
 [[package]]
 name = "moq-native"
 version = "0.13.2"
-source = "git+https://github.com/moq-dev/moq#ff7ca9b089d857c9c45a6cf02e5358150c84bcf0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5754d77ace0048c8349d76a2f12f25a093d6f9358e7e24cf86f84202c0d2a547"
 dependencies = [
  "anyhow",
  "clap",

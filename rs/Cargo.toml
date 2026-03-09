@@ -13,8 +13,8 @@ anyhow = { version = "1", features = ["backtrace"] }
 clap = { version = "4", features = ["derive", "env"] }
 crossterm = { version = "0.28", features = ["event-stream"] }
 futures = "0.3"
-moq-lite = { git = "https://github.com/moq-dev/moq" }
-moq-native = { git = "https://github.com/moq-dev/moq" }
+moq-lite = "0.15.0"
+moq-native = "0.13.2"
 ratatui = "0.29"
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }

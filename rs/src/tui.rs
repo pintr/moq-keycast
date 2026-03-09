@@ -16,6 +16,8 @@ use tokio::sync::mpsc;
 
 /// Events forwarded from the subscriber task to the TUI.
 pub enum PeerEvent {
+    /// A peer appeared in the room (may not have typed yet).
+    Joined(String),
     /// A peer's typing buffer was updated (username → current text).
     Update(String, String),
     /// A peer disconnected or went offline.
@@ -109,6 +111,9 @@ async fn event_loop(
             // ── Peer events from subscriber ─────────────────────────────────
             Some(event) = peer_rx.recv() => {
                 match event {
+                    PeerEvent::Joined(username) => {
+                        app.peers.entry(username).or_insert_with(String::new);
+                    }
                     PeerEvent::Update(username, text) => {
                         app.peers.insert(username, text);
                     }

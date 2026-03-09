@@ -114,13 +114,8 @@ services:
     tty: true
     depends_on:
       - relay
-    # Default CLI flags; --room and --username must be supplied via
-    # `docker compose run tui --room <name> --username <name>`.
-    command:
-      - "--relay"
-      - "https://relay:4443"
-      # The relay cert is issued for "localhost" but we're reaching it
-      # by the Docker service name "relay", so skip hostname verification.
-      - "--tls-disable-verify"
+    # --relay and --tls-disable-verify are baked into the ENTRYPOINT in rs/Dockerfile.
+    # Pass only --username (and optionally --room) when running:
+    #   docker compose run --rm tui --username <name>
     profiles:
       - tui

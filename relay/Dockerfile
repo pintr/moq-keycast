@@ -2,7 +2,7 @@
 # moq-relay Dockerfile
 # =============================================================================
 #
-# Builds the official moq-relay binary from source (https://github.com/moq-dev/moq).
+# Installs the official moq-relay binary directly from crates.io.
 # The relay is the central server that all MoQ clients connect to. It handles:
 #   - QUIC/WebTransport connections from browsers (for real-time pub/sub)
 #   - WebSocket fallback (for browsers without WebTransport support)
@@ -22,46 +22,29 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage 1: Build moq-relay from the moq-dev/moq Rust workspace
+# Stage 1: Build moq-relay from crates.io
 # -----------------------------------------------------------------------------
 # Pin to bookworm-based Rust image so the compiled binary targets GLIBC 2.36,
 # which matches the debian:bookworm-slim runtime stage below.
-# Using a non-bookworm builder (e.g. rust:latest on Trixie) produces a binary
-# that requires GLIBC 2.38+ and will fail to run on bookworm-slim.
 FROM rust:1.88-slim-bookworm AS builder
 
-# Install system build dependencies:
-#   git        - to clone the moq source repository
-#   pkg-config - needed by Rust build scripts to find system libraries
-#   libssl-dev - OpenSSL headers (for TLS/crypto compilation)
-#   cmake      - required by some crypto crate build scripts
+# System build dependencies:
+#   pkg-config / libssl-dev - OpenSSL headers (for TLS/crypto compilation)
+#   cmake / build-essential - required by crypto crate build scripts
 RUN apt-get update && apt-get install -y \
-    git \
     pkg-config \
     libssl-dev \
     cmake \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone the official moq-dev/moq repository.
-# --depth=1 fetches only the latest commit (faster, less disk usage).
-# --filter=blob:none skips large binary blobs during clone.
-RUN git clone --depth=1 --filter=blob:none \
-    https://github.com/moq-dev/moq.git /src
-
-WORKDIR /src
-
-# Compile only the moq-relay binary.
-# We disable iroh (P2P networking layer) to speed up compilation --
-# it's not needed for the basic relay functionality.
-# We keep quinn (QUIC backend) and websocket (fallback) features enabled.
-#
-# NOTE: This step downloads and compiles hundreds of Rust crates.
-#       First build takes 10-20 minutes; subsequent builds are cached by Docker.
-RUN cargo build --release \
+# Install moq-relay from crates.io.
+# v0.10.7 is the stable release matching moq-lite v0.15.0 / moq-native v0.13.2.
+# Disable iroh (P2P layer, not needed for basic relay) to speed up compilation.
+RUN cargo install moq-relay \
+    --version 0.10.7 \
     --no-default-features \
-    --features quinn,websocket \
-    -p moq-relay
+    --features quinn,websocket
 
 # -----------------------------------------------------------------------------
 # Stage 2: Minimal runtime image
@@ -75,7 +58,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy only the compiled relay binary from the build stage
-COPY --from=builder /src/target/release/moq-relay /usr/local/bin/moq-relay
+COPY --from=builder /usr/local/cargo/bin/moq-relay /usr/local/bin/moq-relay
 
 # Expose both transport protocols on port 4443:
 #   UDP - QUIC/WebTransport connections from browsers
